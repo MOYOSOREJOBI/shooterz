@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>SHOOTERZ</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0a0a14;font-family:'Segoe UI',system-ui,sans-serif;color:#fff}
+  canvas{display:block;touch-action:none}
+
+  /* ── Screens ───────────────────────────────────────────────────── */
+  .screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;background:#0a0a14}
+  .screen.hidden{display:none!important}
+
+  /* ── Menu ──────────────────────────────────────────────────────── */
+  #menu-screen{background:radial-gradient(ellipse at center,#12103a 0%,#0a0a14 70%)}
+  .logo{font-size:clamp(2.4rem,8vw,5rem);font-weight:900;letter-spacing:0.06em;
+        background:linear-gradient(135deg,#00d4ff,#a855f7,#ff4455);
+        -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+        text-shadow:none;filter:drop-shadow(0 0 20px #00d4ff88)}
+  .tagline{color:#8899bb;font-size:clamp(0.75rem,2vw,1rem);margin:.4rem 0 2rem;letter-spacing:.15em;text-transform:uppercase}
+  .btn{cursor:pointer;border:none;border-radius:8px;font-size:1rem;font-weight:700;
+       padding:.75rem 2rem;transition:all .15s;letter-spacing:.05em;text-transform:uppercase}
+  .btn-primary{background:linear-gradient(135deg,#00d4ff,#6366f1);color:#fff}
+  .btn-primary:hover{filter:brightness(1.2);transform:scale(1.03)}
+  .btn-secondary{background:#1a1a2e;border:1px solid #334;color:#aac;margin:.3rem}
+  .btn-secondary:hover{background:#222240;border-color:#00d4ff66}
+  .btn-danger{background:#551122;border:1px solid #ff4455;color:#ff8899}
+  .btn-danger:hover{background:#771133}
+  .mode-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;max-width:520px;width:90%;margin:.5rem 0}
+  .mode-btn{background:#12122a;border:2px solid #223;color:#88aacc;padding:.6rem;border-radius:8px;
+            cursor:pointer;font-size:.85rem;font-weight:600;text-align:center;transition:all .15s}
+  .mode-btn:hover,.mode-btn.active{border-color:#00d4ff;color:#00d4ff;background:#0d1a2a}
+  .name-input{background:#111128;border:2px solid #334;border-radius:8px;color:#eef;
+              font-size:1.05rem;padding:.6rem 1rem;width:220px;text-align:center;outline:none;
+              transition:border-color .15s}
+  .name-input:focus{border-color:#00d4ff}
+  .divider{width:80%;max-width:400px;height:1px;background:#223;margin:1rem 0}
+  .row{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;justify-content:center}
+  .room-code-wrap{display:flex;gap:.5rem;align-items:center}
+  .room-code-input{background:#111128;border:2px solid #334;border-radius:8px;color:#eef;
+                   font-size:1rem;padding:.5rem .8rem;width:120px;text-align:center;
+                   outline:none;text-transform:uppercase;letter-spacing:.1em}
+  .room-code-input:focus{border-color:#a855f7}
+  small{color:#556;font-size:.75rem;text-align:center}
+
+  /* ── HUD ───────────────────────────────────────────────────────── */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+  #hud-top{position:absolute;top:0;left:0;right:0;padding:.5rem .75rem;
+           display:flex;align-items:center;gap:.75rem;background:linear-gradient(#0009,transparent)}
+  #wave-badge{background:#00d4ff22;border:1px solid #00d4ff55;border-radius:6px;
+              padding:.25rem .7rem;font-size:.9rem;font-weight:700;color:#00d4ff;letter-spacing:.05em}
+  #grace-badge{background:#ffcc0022;border:1px solid #ffcc0055;border-radius:6px;
+               padding:.25rem .7rem;font-size:.8rem;color:#ffcc00;display:none}
+  #hud-stats{margin-left:auto;display:flex;gap:.75rem;font-size:.78rem;color:#889}
+  #hud-stats span{color:#ccd}
+  #hud-players{position:absolute;bottom:0;left:0;right:0;padding:.5rem .75rem;
+               display:flex;gap:.5rem;justify-content:center;
+               background:linear-gradient(transparent,#0009)}
+  .player-bar{display:flex;flex-direction:column;align-items:center;min-width:80px;gap:2px}
+  .player-bar-name{font-size:.72rem;color:#aac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px}
+  .player-bar-hp-wrap{width:80px;height:6px;background:#222;border-radius:3px;overflow:hidden}
+  .player-bar-hp{height:100%;border-radius:3px;transition:width .1s}
+  #mute-btn{position:absolute;top:.5rem;right:.5rem;background:#0004;border:1px solid #334;
+            border-radius:6px;color:#aac;cursor:pointer;padding:.3rem .55rem;font-size:.85rem;
+            pointer-events:all;z-index:6}
+  #ping-display{position:absolute;top:.5rem;right:3rem;background:#0004;border-radius:4px;
+                color:#556;font-size:.7rem;padding:.2rem .5rem;pointer-events:none}
+
+  /* ── Lobby/Game Over overlay ───────────────────────────────────── */
+  #overlay{position:fixed;inset:0;background:#0009;z-index:8;display:flex;
+           align-items:center;justify-content:center}
+  #overlay.hidden{display:none!important}
+  .overlay-box{background:#0e0e22;border:1px solid #334;border-radius:12px;
+               padding:1.5rem 2rem;max-width:480px;width:90%;text-align:center}
+  .overlay-title{font-size:1.8rem;font-weight:900;margin-bottom:.8rem}
+  .overlay-title.win{color:#44ff88}
+  .overlay-title.lose{color:#ff4455}
+  .overlay-title.info{color:#00d4ff}
+  .score-table{width:100%;border-collapse:collapse;font-size:.85rem;margin:.8rem 0}
+  .score-table th{color:#556;font-weight:600;padding:.3rem .5rem;border-bottom:1px solid #223}
+  .score-table td{padding:.35rem .5rem;color:#ccd}
+  .score-table tr:hover td{background:#ffffff08}
+
+  /* ── How To Play ───────────────────────────────────────────────── */
+  #howto-screen{overflow-y:auto;padding:2rem 1rem}
+  .howto-box{max-width:540px;width:95%;background:#0e0e22;border:1px solid #334;border-radius:12px;padding:1.5rem 2rem}
+  .howto-box h2{color:#00d4ff;margin-bottom:1rem}
+  .howto-box h3{color:#a855f7;margin:.8rem 0 .3rem}
+  .howto-box p,.howto-box li{color:#99aacc;font-size:.9rem;line-height:1.6}
+  .howto-box ul{padding-left:1.2rem}
+  .key{display:inline-block;background:#1a1a2e;border:1px solid #445;border-radius:4px;
+       padding:.05rem .4rem;font-size:.8rem;color:#00d4ff;font-family:monospace}
+
+  /* ── Leaderboard ───────────────────────────────────────────────── */
+  #lb-screen{overflow-y:auto;padding:1rem}
+  .lb-box{max-width:620px;width:95%;background:#0e0e22;border:1px solid #334;border-radius:12px;padding:1.5rem 2rem}
+  .lb-box h2{color:#ffcc00;margin-bottom:1rem;text-align:center}
+  .lb-table{width:100%;border-collapse:collapse;font-size:.82rem}
+  .lb-table th{color:#556;padding:.3rem .5rem;border-bottom:1px solid #223;text-align:left}
+  .lb-table td{padding:.3rem .5rem;color:#ccd}
+  .lb-table tr:nth-child(1) td{color:#ffd700}
+  .lb-table tr:nth-child(2) td{color:#c0c0c0}
+  .lb-table tr:nth-child(3) td{color:#cd7f32}
+
+  /* ── Mobile controls ───────────────────────────────────────────── */
+  #mobile-controls{position:fixed;inset:0;z-index:4;pointer-events:none;display:none}
+  #joystick-zone{position:absolute;left:0;top:0;bottom:0;width:45%;pointer-events:all}
+  #shoot-zone{position:absolute;right:0;top:0;bottom:0;width:45%;pointer-events:all}
+  #joystick-base{position:absolute;width:90px;height:90px;border-radius:50%;
+                 background:#ffffff0d;border:2px solid #00d4ff44;pointer-events:none;display:none}
+  #joystick-knob{position:absolute;width:40px;height:40px;border-radius:50%;
+                 background:radial-gradient(#00d4ff,#0088cc);pointer-events:none;display:none}
+  .touch-btn{position:absolute;width:64px;height:64px;border-radius:50%;
+             background:#ffffff0d;border:2px solid #a855f744;display:flex;align-items:center;
+             justify-content:center;font-size:1.4rem;pointer-events:all;cursor:pointer}
+  #btn-shoot{right:20px;bottom:40px}
+  #btn-shoot.active{background:#a855f733;border-color:#a855f7}
+
+  @media (orientation:portrait){
+    #mobile-controls{display:flex}
+    #hud-top{top:env(safe-area-inset-top,0)}
+  }
+  @media (orientation:landscape) and (max-width:900px){
+    #mobile-controls{display:flex}
+  }
+  @media (min-width:901px) and (orientation:landscape){
+    #mobile-controls{display:none!important}
+  }
+
+  /* ── Connecting ────────────────────────────────────────────────── */
+  #connecting{position:fixed;inset:0;background:#0a0a14ee;z-index:20;display:flex;
+              flex-direction:column;align-items:center;justify-content:center;gap:1rem}
+  #connecting.hidden{display:none!important}
+  .spinner{width:48px;height:48px;border:4px solid #223;border-top-color:#00d4ff;
+           border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ══ Connecting overlay ══════════════════════════════════════════════════ -->
+<div id="connecting" class="hidden">
+  <div class="spinner"></div>
+  <p style="color:#8899bb">Connecting to SHOOTERZ...</p>
+</div>
+
+<!-- ══ Menu Screen ════════════════════════════════════════════════════════ -->
+<div id="menu-screen" class="screen">
+  <div class="logo">SHOOTERZ</div>
+  <div class="tagline">survive the waves · dominate the arena</div>
+
+  <input class="name-input" id="name-input" maxlength="16" placeholder="Enter your name" autocomplete="off" spellcheck="false">
+
+  <div style="margin:.8rem 0 .4rem;color:#556;font-size:.8rem;text-transform:uppercase;letter-spacing:.1em">Game Mode</div>
+  <div class="mode-grid">
+    <div class="mode-btn active" data-mode="solo">Solo</div>
+    <div class="mode-btn" data-mode="coop">Co-op 2-4</div>
+    <div class="mode-btn" data-mode="1v1">1v1</div>
+    <div class="mode-btn" data-mode="2v2">2v2</div>
+    <div class="mode-btn" data-mode="1v1v1">1v1v1</div>
+    <div class="mode-btn" data-mode="1v1v1v1">1v1v1v1</div>
+  </div>
+
+  <div style="margin:.6rem 0 .2rem">
+    <div class="room-code-wrap">
+      <input class="room-code-input" id="room-code-input" maxlength="8" placeholder="ROOM ID" autocomplete="off" spellcheck="false">
+      <button class="btn btn-secondary" id="join-room-btn" style="padding:.5rem 1rem;font-size:.85rem">Join Room</button>
+    </div>
+    <small style="margin-top:.3rem;display:block">Leave blank to auto-match</small>
+  </div>
+
+  <div style="margin-top:1.2rem;display:flex;gap:.6rem">
+    <button class="btn btn-primary" id="play-btn" style="padding:.85rem 2.5rem;font-size:1.1rem">PLAY</button>
+  </div>
+  <div class="divider"></div>
+  <div class="row">
+    <button class="btn btn-secondary" id="howto-btn">How to Play</button>
+    <button class="btn btn-secondary" id="lb-btn">Leaderboard</button>
+  </div>
+  <small style="margin-top:1rem;color:#334">Max 4 players · Worldwide leaderboard · Mobile + Desktop</small>
+</div>
+
+<!-- ══ How To Play ════════════════════════════════════════════════════════ -->
+<div id="howto-screen" class="screen hidden">
+  <div class="howto-box">
+    <h2>How to Play</h2>
+    <h3>Objective</h3>
+    <p>Survive endless waves of enemies. The balls come faster each wave — stay alive as long as you can!</p>
+    <h3>Desktop Controls</h3>
+    <ul>
+      <li><span class="key">↑ ↓ ← →</span> or <span class="key">W A S D</span> — Move</li>
+      <li><b>Mouse</b> — Aim (auto-shoots while moving cursor)</li>
+      <li><b>Left Click / Space</b> — Shoot</li>
+    </ul>
+    <h3>Mobile Controls</h3>
+    <ul>
+      <li><b>Left side</b> — Virtual joystick to move</li>
+      <li><b>Right side</b> — Tap &amp; drag to aim and shoot</li>
+      <li>Rotate phone to <b>landscape</b> for best experience</li>
+    </ul>
+    <h3>Enemies</h3>
+    <ul>
+      <li><b style="color:#e03030">Chasers</b> — Fast, 30 HP. 2 shots to kill.</li>
+      <li><b style="color:#a040c0">Tanks</b> — Slow but tough, 90 HP. 5 shots to kill.</li>
+    </ul>
+    <h3>Game Modes</h3>
+    <ul>
+      <li><b>Solo</b> — Survive alone. Classic mode.</li>
+      <li><b>Co-op</b> — 2-4 players on the same team vs waves.</li>
+      <li><b>1v1 / 1v1v1 / 1v1v1v1</b> — Free-for-all. Kill players with 500 bullets.</li>
+      <li><b>2v2</b> — Team deathmatch + waves. Last team standing wins.</li>
+    </ul>
+    <h3>Tips</h3>
+    <ul>
+      <li>Pick up <b style="color:#44ff88">green orbs</b> dropped by enemies to heal 30 HP.</li>
+      <li>Waves arrive every 2 seconds after all enemies are cleared.</li>
+      <li>Player bullets deal 0.2 dmg (500 bullets to eliminate a player).</li>
+    </ul>
+    <div style="margin-top:1.2rem">
+      <button class="btn btn-secondary" id="howto-back">Back to Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Leaderboard Screen ═════════════════════════════════════════════════ -->
+<div id="lb-screen" class="screen hidden">
+  <div class="lb-box">
+    <h2>🏆 World Leaderboard</h2>
+    <table class="lb-table">
+      <thead><tr>
+        <th>#</th><th>Name</th><th>Wave</th><th>Kills</th><th>Time</th><th>Mode</th>
+      </tr></thead>
+      <tbody id="lb-body"><tr><td colspan="6" style="color:#445;text-align:center">Loading...</td></tr></tbody>
+    </table>
+    <div style="margin-top:1.2rem;display:flex;gap:.5rem;justify-content:center">
+      <button class="btn btn-secondary" id="lb-refresh">Refresh</button>
+      <button class="btn btn-secondary" id="lb-back">Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Game Canvas ════════════════════════════════════════════════════════ -->
+<canvas id="game-canvas"></canvas>
+
+<!-- ══ HUD ════════════════════════════════════════════════════════════════ -->
+<div id="hud" class="hidden">
+  <div id="hud-top">
+    <div id="wave-badge">WAVE 1</div>
+    <div id="grace-badge">NEXT WAVE</div>
+    <div id="hud-stats">
+      <span id="stat-kills">0 kills</span>
+      <span id="stat-time">0:00</span>
+      <span id="stat-bullets">0 bullets</span>
+    </div>
+  </div>
+  <div id="hud-players"></div>
+</div>
+
+<button id="mute-btn" title="Mute/Unmute">🔊</button>
+<div id="ping-display">-- ms</div>
+
+<!-- ══ In-game overlay (game over / lobby wait) ════════════════════════════ -->
+<div id="overlay" class="hidden">
+  <div class="overlay-box">
+    <div class="overlay-title" id="overlay-title">Game Over</div>
+    <div id="overlay-body"></div>
+    <div style="margin-top:1rem;display:flex;gap:.5rem;justify-content:center" id="overlay-btns"></div>
+  </div>
+</div>
+
+<!-- ══ Mobile Controls ════════════════════════════════════════════════════ -->
+<div id="mobile-controls">
+  <div id="joystick-zone"></div>
+  <div id="joystick-base"></div>
+  <div id="joystick-knob"></div>
+  <div id="shoot-zone"></div>
+</div>
+
+<script src="/js/constants.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="/js/Audio.js"></script>
+<script src="/js/Input.js"></script>
+<script src="/js/Renderer.js"></script>
+<script src="/js/Game.js"></script>
+<script src="/js/UI.js"></script>
+<script src="/js/main.js"></script>
+</body>
+</html>
