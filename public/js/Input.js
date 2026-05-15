@@ -31,25 +31,26 @@ const Input = (() => {
 
   // Mouse
   const canvas = document.getElementById('game-canvas');
+  let mouseMoved = false;
   canvas.addEventListener('mousemove', e => {
     const r = canvas.getBoundingClientRect();
     mouseX = e.clientX - r.left;
     mouseY = e.clientY - r.top;
-    // Auto-shoot whenever mouse moves on canvas (aim = shoot on desktop)
-    if (mouseDown) shooting = true;
+    mouseMoved = true;
+    // Aim = shoot: moving the mouse on the canvas fires automatically
+    shooting = true;
+  });
+  // Stop shooting when mouse leaves canvas
+  canvas.addEventListener('mouseleave', () => {
+    shooting = false;
+    mouseDown = false;
   });
   canvas.addEventListener('mousedown', e => {
-    if (e.button === 0) { mouseDown = true; shooting = true; Audio.unlock(); }
+    if (e.button === 0 || e.button === 2) { mouseDown = true; shooting = true; Audio.unlock(); }
   });
   canvas.addEventListener('mouseup', e => {
-    if (e.button === 0) { mouseDown = false; shooting = false; }
-  });
-  // Also shoot on right click (aim right-click)
-  canvas.addEventListener('mousedown', e => {
-    if (e.button === 2) { shooting = true; }
-  });
-  canvas.addEventListener('mouseup', e => {
-    if (e.button === 2) { shooting = false; }
+    mouseDown = false;
+    // Keep shooting if mouse still on canvas and moving
   });
   document.addEventListener('mouseleave', () => { mouseDown = false; shooting = false; });
 
@@ -158,7 +159,8 @@ const Input = (() => {
         down:  !!(keys.down  || jDown),
         aimX:  aimWorldX,
         aimY:  aimWorldY,
-        shooting: !!(shooting || mouseDown || shootTouch.active),
+        // Aim = shoot on desktop (mouse on canvas); touch: tap right side
+      shooting: !!(shooting || shootTouch.active),
       };
     },
 
