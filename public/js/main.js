@@ -1,5 +1,21 @@
 // Entry point — wire up menu buttons and kick off the app
 (function () {
+  // Render pixel-art title into the small menu canvas
+  function drawTitleCanvas() {
+    const tc  = document.getElementById('title-canvas');
+    if (!tc) return;
+    const tctx = tc.getContext('2d');
+    tctx.imageSmoothingEnabled = false;
+    tctx.fillStyle = '#000';
+    tctx.fillRect(0, 0, tc.width, tc.height);
+    // Scale up the sprite (175x55 → 350x110)
+    if (Sprites.title.complete) {
+      tctx.drawImage(Sprites.title, 0, 0, 175, 55, 0, 28, 350, 110);
+    } else {
+      Sprites.title.onload = drawTitleCanvas;
+    }
+  }
+  drawTitleCanvas();
   let selectedMode = C.MODES.SOLO;
 
   // ── Mode selection ────────────────────────────────────────────────────────

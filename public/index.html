@@ -9,8 +9,17 @@
 <title>SHOOTERZ</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
-  html,body{width:100%;height:100%;overflow:hidden;background:#0a0a14;font-family:'Segoe UI',system-ui,sans-serif;color:#fff}
-  canvas{display:block;touch-action:none}
+  html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',system-ui,sans-serif;color:#fff}
+  canvas{display:block;touch-action:none;image-rendering:pixelated;image-rendering:crisp-edges}
+
+  /* ── Rotate prompt (portrait on mobile) ─────────────────────────── */
+  #rotate-prompt{position:fixed;inset:0;background:#000;z-index:100;
+    display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem}
+  #rotate-prompt span{font-size:4rem}
+  #rotate-prompt p{color:#aac;font-size:1rem;text-transform:uppercase;letter-spacing:.1em}
+  @media (max-width:900px) and (orientation:portrait){
+    #rotate-prompt{display:flex}
+  }
 
   /* ── Screens ───────────────────────────────────────────────────── */
   .screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;background:#0a0a14}
@@ -143,6 +152,12 @@
 </head>
 <body>
 
+<!-- ══ Rotate prompt ══════════════════════════════════════════════════════ -->
+<div id="rotate-prompt">
+  <span>📱</span>
+  <p>Rotate to landscape to play</p>
+</div>
+
 <!-- ══ Connecting overlay ══════════════════════════════════════════════════ -->
 <div id="connecting" class="hidden">
   <div class="spinner"></div>
@@ -151,7 +166,8 @@
 
 <!-- ══ Menu Screen ════════════════════════════════════════════════════════ -->
 <div id="menu-screen" class="screen">
-  <div class="logo">SHOOTERZ</div>
+  <!-- pixel-art title sprite rendered into a canvas -->
+  <canvas id="title-canvas" width="350" height="110" style="image-rendering:pixelated;max-width:90vw"></canvas>
   <div class="tagline">survive the waves · dominate the arena</div>
 
   <input class="name-input" id="name-input" maxlength="16" placeholder="Enter your name" autocomplete="off" spellcheck="false">
@@ -246,8 +262,8 @@
 <!-- ══ Game Canvas ════════════════════════════════════════════════════════ -->
 <canvas id="game-canvas"></canvas>
 
-<!-- ══ HUD ════════════════════════════════════════════════════════════════ -->
-<div id="hud" class="hidden">
+<!-- ══ HUD (wave/grace rendered on canvas; this div holds multi-player bars) ══ -->
+<div id="hud" class="hidden" style="pointer-events:none">
   <div id="hud-top">
     <div id="wave-badge">WAVE 1</div>
     <div id="grace-badge">NEXT WAVE</div>
@@ -282,6 +298,7 @@
 
 <script src="/js/constants.js"></script>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="/js/sprites.js"></script>
 <script src="/js/Audio.js"></script>
 <script src="/js/Input.js"></script>
 <script src="/js/Renderer.js"></script>

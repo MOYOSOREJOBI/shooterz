@@ -143,8 +143,17 @@ const UI = (() => {
 
     document.getElementById('overlay').classList.remove('hidden');
     const title = document.getElementById('overlay-title');
-    title.textContent = scores.length === 1 ? 'GAME OVER' : (isSelf ? 'VICTORY!' : 'DEFEATED');
-    title.className   = 'overlay-title ' + (isSelf || scores.length === 1 ? (scores.length === 1 ? 'lose' : 'win') : 'lose');
+    // Show pixel gameover sprite
+    title.innerHTML = `<canvas id="go-canvas" width="273" height="33" style="image-rendering:pixelated;max-width:80vw"></canvas>`;
+    title.className = 'overlay-title lose';
+    setTimeout(() => {
+      const gc = document.getElementById('go-canvas');
+      if (gc && Sprites && Sprites.gameover) {
+        const gctx = gc.getContext('2d');
+        gctx.imageSmoothingEnabled = false;
+        gctx.drawImage(Sprites.gameover, 0, 0, 273, 33);
+      }
+    }, 30);
 
     const rows = scores.map(s => `<tr>
       <td>${s.name}</td><td>${s.wave || data.wave || 0}</td>
