@@ -1,10 +1,6 @@
-// UI — menus, HUD, overlays, leaderboard
 const UI = (() => {
-  let selfId   = null;
-  let selfData = null;
-  let gameStartTime = 0;
+  let selfId = null, selfData = null, gameStartTime = 0;
 
-  // ── Screen management ─────────────────────────────────────────────────────
   function hideAll() {
     ['menu-screen','howto-screen','lb-screen'].forEach(id => {
       document.getElementById(id).classList.add('hidden');
@@ -16,168 +12,106 @@ const UI = (() => {
   function showMenu() {
     hideAll();
     document.getElementById('menu-screen').classList.remove('hidden');
-    document.getElementById('hud').classList.add('hidden');
+    document.getElementById('mute-btn').classList.add('hidden');
+    document.getElementById('ping-display').classList.add('hidden');
     document.getElementById('mobile-controls').style.display = 'none';
+    Renderer.clearGameOver && Renderer.clearGameOver();
+    Game.requestRoomList();
   }
 
   function showGame() {
     hideAll();
-    document.getElementById('hud').classList.remove('hidden');
+    document.getElementById('mute-btn').classList.remove('hidden');
+    document.getElementById('ping-display').classList.remove('hidden');
     gameStartTime = Date.now();
-    // Show mobile controls on touch devices
-    if ('ontouchstart' in window) {
-      document.getElementById('mobile-controls').style.display = 'flex';
-    }
+    if ('ontouchstart' in window) document.getElementById('mobile-controls').style.display = 'flex';
   }
 
-  // ── HUD ───────────────────────────────────────────────────────────────────
-  function updateHUD(state, myId) {
-    selfId = myId;
-    if (!state) return;
-
-    const self = state.players && state.players.find(p => p.id === myId);
-    selfData = self;
-
-    // Wave badge
-    document.getElementById('wave-badge').textContent = `WAVE ${state.wave || 0}`;
-
-    // Grace timer
-    const gb = document.getElementById('grace-badge');
-    if (state.enemiesLeft === 0 && state.graceTimer > 0) {
-      gb.style.display = 'block';
-      gb.textContent   = `NEXT WAVE ${state.graceTimer.toFixed(1)}s`;
-    } else {
-      gb.style.display = 'none';
-    }
-
-    // Stats
-    if (self) {
-      const secs = Math.floor((Date.now() - gameStartTime) / 1000);
-      const mm   = Math.floor(secs / 60).toString().padStart(2, '0');
-      const ss   = (secs % 60).toString().padStart(2, '0');
-      document.getElementById('stat-kills').textContent   = `${self.kills || 0} kills`;
-      document.getElementById('stat-time').textContent    = `${mm}:${ss}`;
-      document.getElementById('stat-bullets').textContent = `${(self.bulletsUsed || 0)} bullets`;
-    }
-
-    // Player bars
-    const pb = document.getElementById('hud-players');
-    pb.innerHTML = '';
-    if (state.players) {
-      state.players.forEach(p => {
-        const col = C.TEAM_GLOW[p.colorIdx % C.TEAM_GLOW.length];
-        const div = document.createElement('div');
-        div.className = 'player-bar';
-        div.innerHTML = `
-          <div class="player-bar-name" style="color:${col}">${p.name}${p.id === myId ? ' (you)' : ''}</div>
-          <div class="player-bar-hp-wrap">
-            <div class="player-bar-hp" style="width:${Math.max(0,(p.hp/p.maxHp)*100).toFixed(1)}%;background:${col}"></div>
-          </div>`;
-        pb.appendChild(div);
-      });
-    }
-  }
-
-  // ── Room joined ───────────────────────────────────────────────────────────
+  // ── Room joined ────────────────────────────────────────────────────────────
   function onRoomJoined(data) {
     selfId = data.playerId;
     if (data.leaderboard && data.leaderboard.length) renderLeaderboard(data.leaderboard);
-    if (data.mode !== C.MODES.SOLO && data.players.length < maxPlayersForMode(data.mode)) {
-      // Show lobby wait overlay
-      document.getElementById('overlay').classList.remove('hidden');
-      document.getElementById('overlay-title').textContent = 'Waiting for players...';
-      document.getElementById('overlay-title').className   = 'overlay-title info';
-      document.getElementById('overlay-body').innerHTML    = `
-        <p style="color:#8899bb;margin:.5rem 0">Room Code:</p>
-        <div style="display:flex;align-items:center;justify-content:center;gap:.6rem;margin:.4rem 0">
-          <span id="room-code-display" style="font-size:1.8rem;font-weight:900;color:#00d4ff;letter-spacing:.2em;background:#0d1a2a;padding:.3rem .9rem;border-radius:8px;border:1px solid #00d4ff44">${data.roomId}</span>
-          <button class="btn btn-secondary" style="padding:.4rem .8rem;font-size:.8rem" onclick="navigator.clipboard&&navigator.clipboard.writeText('${data.roomId}').then(()=>this.textContent='Copied!').catch(()=>{})">Copy</button>
-        </div>
-        <p style="color:#556;font-size:.82rem;margin-bottom:.5rem">Share this code — friends enter it in the Room ID field on the menu</p>
-        <p style="color:#8899bb">${data.players.length} / ${maxPlayersForMode(data.mode)} players joined</p>`;
-      document.getElementById('overlay-btns').innerHTML = `<button class="btn btn-danger" onclick="UI.leaveGame()">Leave</button>`;
-    }
+    const maxP = { solo:1, coop:4, '1v1':2, '2v2':4, '1v1v1':3, '1v1v1v1':4 }[data.mode] || 1;
+    const waitingForMore = data.mode !== 'solo' && data.players.length < maxP;
+    if (waitingForMore) _showLobby(data, maxP);
   }
 
-  function onPlayerJoined(data) {
-    const ob = document.getElementById('overlay');
-    if (!ob.classList.contains('hidden')) {
-      // Update lobby count — just hide if full
-      ob.classList.add('hidden');
-    }
+  function _showLobby(data, maxP) {
+    document.getElementById('overlay').classList.remove('hidden');
+    document.getElementById('overlay-title').textContent = 'Waiting for players…';
+    document.getElementById('overlay-title').className   = 'otitle info';
+    document.getElementById('overlay-body').innerHTML = `
+      <p style="color:#8899bb;margin:.4rem 0">Room: <b id="lobby-code" style="color:var(--accent);letter-spacing:.18em;font-family:monospace">${data.roomId}</b>
+        <button class="btn-sm" style="margin-left:.5rem;padding:.2rem .5rem" onclick="navigator.clipboard&&navigator.clipboard.writeText('${data.roomId}').then(()=>this.textContent='✓').catch(()=>{})">Copy</button>
+      </p>
+      <p style="color:#556;font-size:.8rem">Share the Room ID so friends can join</p>
+      <p style="color:#8899bb;margin-top:.5rem" id="lobby-count">${data.players.length} / ${maxP} joined</p>`;
+    document.getElementById('overlay-btns').innerHTML = `<button class="btn-danger" onclick="UI.leaveGame()">Leave</button>`;
   }
 
-  function onPlayerLeft(data) {}
+  function onPlayerJoined(d) {
+    const lc = document.getElementById('lobby-count');
+    if (lc) { document.getElementById('overlay').classList.add('hidden'); }
+  }
+  function onPlayerLeft(d) {}
 
-  function onGameEvent(evt) {
-    if (evt.type === 'wave_start') {
-      flashMessage(`WAVE ${evt.wave}`, '#00d4ff');
-    }
-    if (evt.type === 'player_death' && evt.id === selfId) {
-      flashMessage('YOU DIED', '#ff4455');
-    }
+  // ── HUD ────────────────────────────────────────────────────────────────────
+  function updateHUD(state, myId) {
+    selfId = myId;
+    const self = state && state.players && state.players.find(p => p.id === myId);
+    selfData = self || selfData;
   }
 
-  function flashMessage(text, color) {
+  // ── Game events ────────────────────────────────────────────────────────────
+  function onGameEvent(evt, myId) {
+    if (evt.type === 'wave_start') _flash(`WAVE ${evt.wave}`, '#00c8ff');
+    if (evt.type === 'player_death' && evt.id === myId) _flash('YOU DIED', '#e63232');
+  }
+
+  function _flash(text, color) {
     const el = document.createElement('div');
     el.textContent = text;
-    el.style.cssText = `position:fixed;top:40%;left:50%;transform:translate(-50%,-50%);
-      font-size:clamp(1.8rem,6vw,3.5rem);font-weight:900;color:${color};
+    el.style.cssText = `position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);
+      font-size:clamp(1.8rem,6vw,3.5rem);font-weight:900;color:${color};letter-spacing:.06em;
       text-shadow:0 0 30px ${color};pointer-events:none;z-index:9;
-      animation:fadeOut 1.5s forwards`;
-    document.body.appendChild(el);
-    if (!document.querySelector('#fade-style')) {
+      animation:flash 1.4s forwards`;
+    if (!document.getElementById('flash-style')) {
       const s = document.createElement('style');
-      s.id = 'fade-style';
-      s.textContent = '@keyframes fadeOut{0%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-70%) scale(1.3)}}';
+      s.id = 'flash-style';
+      s.textContent = '@keyframes flash{0%{opacity:1;transform:translate(-50%,-50%)scale(1.1)}100%{opacity:0;transform:translate(-50%,-65%)scale(1.3)}}';
       document.head.appendChild(s);
     }
-    setTimeout(() => el.remove(), 1600);
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1500);
   }
 
-  // ── Game Over ─────────────────────────────────────────────────────────────
+  // ── Game over ──────────────────────────────────────────────────────────────
   function showGameOver(data) {
-    const scores  = data.scores || [];
-    const winner  = scores.reduce((a, b) => (b.kills > a.kills ? b : a), scores[0] || {});
-    const isSelf  = winner && winner.name === (selfData && selfData.name);
-
+    const scores = data.scores || [];
     document.getElementById('overlay').classList.remove('hidden');
-    const title = document.getElementById('overlay-title');
-    // Show pixel gameover sprite
-    title.innerHTML = `<canvas id="go-canvas" width="273" height="33" style="image-rendering:pixelated;max-width:80vw"></canvas>`;
-    title.className = 'overlay-title lose';
-    setTimeout(() => {
-      const gc = document.getElementById('go-canvas');
-      if (gc && Sprites && Sprites.gameover) {
-        const gctx = gc.getContext('2d');
-        gctx.imageSmoothingEnabled = false;
-        gctx.drawImage(Sprites.gameover, 0, 0, 273, 33);
-      }
-    }, 30);
-
+    document.getElementById('overlay-title').textContent = 'GAME OVER';
+    document.getElementById('overlay-title').className   = 'otitle lose';
     const rows = scores.map(s => `<tr>
-      <td>${s.name}</td><td>${s.wave || data.wave || 0}</td>
-      <td>${s.kills}</td><td>${s.time}s</td><td>${s.bullets || 0}</td><td>${s.distance || 0}px</td>
+      <td>${esc(s.name)}</td><td>${s.wave||0}</td><td>${s.kills||0}</td>
+      <td>${s.time||0}s</td><td>${s.bullets||0}</td><td>${s.distance||0}px</td>
     </tr>`).join('');
-
     document.getElementById('overlay-body').innerHTML = `
       <table class="score-table">
         <thead><tr><th>Name</th><th>Wave</th><th>Kills</th><th>Time</th><th>Bullets</th><th>Dist</th></tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${rows || '<tr><td colspan="6" style="color:#445">-</td></tr>'}</tbody>
       </table>`;
-
     document.getElementById('overlay-btns').innerHTML = `
       <button class="btn btn-primary" onclick="UI.playAgain()">Play Again</button>
-      <button class="btn btn-secondary" onclick="UI.leaveGame()">Main Menu</button>`;
+      <button class="btn-sm" onclick="UI.leaveGame()">Menu</button>`;
   }
 
   function playAgain() {
     Game.disconnect();
     document.getElementById('overlay').classList.add('hidden');
-    // Re-join with same settings
-    const name = document.getElementById('name-input').value.trim() || 'Player';
-    const mode = document.querySelector('.mode-btn.active')?.dataset.mode || 'solo';
-    Game.connect(name, mode, null);
+    const name = document.getElementById('name-input').value.trim() ||
+                 C.AVATAR_NAMES[Math.floor(Math.random()*C.AVATAR_NAMES.length)];
+    const modeEl = document.querySelector('.mode-btn.active');
+    Game.connect(name, modeEl ? modeEl.dataset.mode : 'solo', null);
   }
 
   function leaveGame() {
@@ -185,41 +119,54 @@ const UI = (() => {
     showMenu();
   }
 
-  // ── Leaderboard ───────────────────────────────────────────────────────────
+  // ── Leaderboard ────────────────────────────────────────────────────────────
   function renderLeaderboard(lb) {
-    const tbody = document.getElementById('lb-body');
-    if (!tbody) return;
-    if (!lb || lb.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="color:#445;text-align:center">No scores yet</td></tr>';
+    const el = document.getElementById('lb-body');
+    if (!el) return;
+    if (!lb || !lb.length) {
+      el.innerHTML = '<tr><td colspan="7" style="color:#445;text-align:center">No scores yet</td></tr>';
       return;
     }
-    tbody.innerHTML = lb.map((s, i) => `<tr>
-      <td>${i + 1}</td>
-      <td>${escHtml(s.name)}</td>
-      <td>${s.wave}</td>
-      <td>${s.kills}</td>
-      <td>${s.time}s</td>
-      <td>${s.mode || 'solo'}</td>
+    el.innerHTML = lb.map((s,i) => `<tr>
+      <td>${i+1}</td><td>${esc(s.name)}</td><td>${s.wave}</td><td>${s.kills}</td>
+      <td>${s.time}s</td><td>${s.bullets||0}</td><td>${s.mode||'solo'}</td>
     </tr>`).join('');
   }
 
-  function renderRoomList(list) {}
-
-  function maxPlayersForMode(m) {
-    if (m === C.MODES.SOLO) return 1;
-    if (m === C.MODES.V1V1 || m === C.MODES.COOP) return 2;
-    if (m === C.MODES.V1V1V1) return 3;
-    return 4;
+  // ── Room browser ───────────────────────────────────────────────────────────
+  function renderRoomList(list) {
+    const el = document.getElementById('room-list');
+    if (!el) return;
+    if (!list || !list.length) {
+      el.innerHTML = '<div style="color:#445;font-size:.8rem;padding:.3rem">No open rooms — press PLAY to start one</div>';
+      return;
+    }
+    el.innerHTML = list.map(r => `
+      <div class="room-item" onclick="UI.quickJoin('${r.id}','${r.mode}')">
+        <span class="ri-code">${r.id}</span>
+        <span class="ri-info">${r.mode} · ${r.players}/${r.maxPlayers} · Wave ${r.wave}</span>
+        <span class="btn-sm" style="font-size:.75rem;padding:.2rem .5rem">Join →</span>
+      </div>`).join('');
   }
 
-  function escHtml(s) {
-    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  function quickJoin(roomId, mode) {
+    const name = document.getElementById('name-input').value.trim() ||
+                 C.AVATAR_NAMES[Math.floor(Math.random()*C.AVATAR_NAMES.length)];
+    // Set mode button
+    document.querySelectorAll('.mode-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    Game.connect(name, mode, roomId);
+  }
+
+  function esc(s) {
+    return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
   return {
     showMenu, showGame, hideAll,
     updateHUD, onRoomJoined, onPlayerJoined, onPlayerLeft, onGameEvent,
-    showGameOver, renderLeaderboard, renderRoomList,
-    playAgain, leaveGame, flashMessage,
+    showGameOver, renderLeaderboard, renderRoomList, quickJoin,
+    playAgain, leaveGame,
   };
 })();

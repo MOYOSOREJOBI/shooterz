@@ -1,24 +1,33 @@
-// Entry point — wire up menu buttons and kick off the app
 (function () {
-  // Render pixel-art title into the small menu canvas
-  function drawTitleCanvas() {
-    const tc  = document.getElementById('title-canvas');
-    if (!tc) return;
-    const tctx = tc.getContext('2d');
-    tctx.imageSmoothingEnabled = false;
-    tctx.fillStyle = '#000';
-    tctx.fillRect(0, 0, tc.width, tc.height);
-    // Scale up the sprite (175x55 → 350x110)
-    if (Sprites.title.complete) {
-      tctx.drawImage(Sprites.title, 0, 0, 175, 55, 0, 28, 350, 110);
-    } else {
-      Sprites.title.onload = drawTitleCanvas;
-    }
-  }
-  drawTitleCanvas();
   let selectedMode = C.MODES.SOLO;
 
-  // ── Mode selection ────────────────────────────────────────────────────────
+  // Draw pixel-art title sprite on menu canvas
+  function drawTitle() {
+    const tc = document.getElementById('title-canvas');
+    if (!tc) return;
+    const g = tc.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.fillStyle = '#0f0f19';
+    g.fillRect(0, 0, tc.width, tc.height);
+    const draw = () => g.drawImage(GameSprites.playerRun.img,
+      0, 0, 32, 32,          // first frame of player sprite as icon
+      10, 30, 64, 64);
+    // Also try to draw a "SHOOTERZ" text since we don't have an explicit title sprite
+    g.font = 'bold 52px monospace';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    const grad = g.createLinearGradient(0, 0, 350, 0);
+    grad.addColorStop(0,   '#00c8ff');
+    grad.addColorStop(0.5, '#a855f7');
+    grad.addColorStop(1,   '#e63232');
+    g.fillStyle = grad;
+    g.fillText('SHOOTERZ', 175, 55);
+    if (GameSprites.playerRun.img.complete) draw();
+    else GameSprites.playerRun.img.onload = draw;
+  }
+  drawTitle();
+
+  // Mode select
   document.querySelectorAll('.mode-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
@@ -27,33 +36,35 @@
     });
   });
 
-  // ── Play button ───────────────────────────────────────────────────────────
+  // Play button
   document.getElementById('play-btn').addEventListener('click', () => {
     Audio.unlock();
-    const name   = document.getElementById('name-input').value.trim().slice(0, 16) ||
-                   C.AVATAR_NAMES[Math.floor(Math.random() * C.AVATAR_NAMES.length)];
-    const roomId = document.getElementById('room-code-input').value.trim().toUpperCase() || null;
-    Game.connect(name, selectedMode, roomId);
-  });
-
-  // ── Join by room code ─────────────────────────────────────────────────────
-  document.getElementById('join-room-btn').addEventListener('click', () => {
-    Audio.unlock();
-    const code = document.getElementById('room-code-input').value.trim().toUpperCase();
-    if (!code) { alert('Enter a room ID first'); return; }
-    const name = document.getElementById('name-input').value.trim().slice(0, 16) ||
-                 C.AVATAR_NAMES[Math.floor(Math.random() * C.AVATAR_NAMES.length)];
+    const name = _name();
+    const code = document.getElementById('room-code-input').value.trim().toUpperCase() || null;
     Game.connect(name, selectedMode, code);
   });
 
-  // ── How to play ───────────────────────────────────────────────────────────
+  // Join by code
+  document.getElementById('join-room-btn').addEventListener('click', () => {
+    const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+    if (!code) { alert('Enter a Room ID first'); return; }
+    Audio.unlock();
+    Game.connect(_name(), selectedMode, code);
+  });
+
+  // Refresh rooms
+  document.getElementById('refresh-rooms').addEventListener('click', () => {
+    Game.requestRoomList();
+  });
+
+  // How to play
   document.getElementById('howto-btn').addEventListener('click', () => {
     document.getElementById('menu-screen').classList.add('hidden');
     document.getElementById('howto-screen').classList.remove('hidden');
   });
   document.getElementById('howto-back').addEventListener('click', () => UI.showMenu());
 
-  // ── Leaderboard ───────────────────────────────────────────────────────────
+  // Leaderboard
   document.getElementById('lb-btn').addEventListener('click', () => {
     document.getElementById('menu-screen').classList.add('hidden');
     document.getElementById('lb-screen').classList.remove('hidden');
@@ -62,27 +73,26 @@
   document.getElementById('lb-back').addEventListener('click', () => UI.showMenu());
   document.getElementById('lb-refresh').addEventListener('click', () => Game.requestLeaderboard());
 
-  // ── Mute ──────────────────────────────────────────────────────────────────
+  // Mute
   document.getElementById('mute-btn').addEventListener('click', () => {
-    const muted = Audio.toggleMute();
-    document.getElementById('mute-btn').textContent = muted ? '🔇' : '🔊';
+    document.getElementById('mute-btn').textContent = Audio.toggleMute() ? '🔇' : '🔊';
   });
 
-  // ── Random name on load ───────────────────────────────────────────────────
-  if (!document.getElementById('name-input').value) {
-    document.getElementById('name-input').placeholder =
-      C.AVATAR_NAMES[Math.floor(Math.random() * C.AVATAR_NAMES.length)];
-  }
-
-  // ── Prevent double-tap zoom on mobile ────────────────────────────────────
-  document.addEventListener('touchstart', e => {
-    if (e.touches.length > 1) e.preventDefault();
-  }, { passive: false });
-
-  // Allow canvas right-click (for mouse aiming)
+  // Prevent zoom/scroll on touch
+  document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive:false });
   document.getElementById('game-canvas').addEventListener('contextmenu', e => e.preventDefault());
 
-  // ── Also add POST handler for solo leaderboard submission ─────────────────
-  // (Server side: add this route)
+  // Auto-load room list
+  setTimeout(() => Game.requestRoomList(), 500);
+
+  // Default placeholder name
+  document.getElementById('name-input').placeholder =
+    C.AVATAR_NAMES[Math.floor(Math.random() * C.AVATAR_NAMES.length)];
+
   UI.showMenu();
+
+  function _name() {
+    return (document.getElementById('name-input').value.trim().slice(0,16)) ||
+           C.AVATAR_NAMES[Math.floor(Math.random()*C.AVATAR_NAMES.length)];
+  }
 })();
