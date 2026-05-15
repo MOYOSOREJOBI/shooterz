@@ -1,170 +1,128 @@
-// Keyboard + mouse + touch input handler
+// Input — keyboard + mouse + touch
+// Desktop: ARROW / WASD = move. POINTER ON CANVAS = aim & auto-shoot.
+// Mobile:  Left side joystick = move. Right side finger = aim & shoot.
 const Input = (() => {
   const keys = {};
-  let mouseX = 0, mouseY = 0;    // canvas coords
-  let worldX = 0, worldY = 0;    // world coords (set by Game)
-  let shooting = false;
-  let mouseDown = false;
+  let mouseX = 0, mouseY = 0;
+  let mouseOnCanvas = false; // true = auto-shooting toward cursor
 
-  // Joystick state (mobile)
-  const joystick = { active: false, baseX: 0, baseY: 0, dx: 0, dy: 0 };
-  const shootTouch = { active: false, aimX: 0, aimY: 0 };
+  // Joystick (mobile)
+  const joy = { active: false, baseX: 0, baseY: 0, dx: 0, dy: 0 };
+  // Right-side touch aim
+  const aim = { active: false, x: 0, y: 0 };
 
-  // Normalise key names
-  function key(e) {
-    const map = {
-      ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
-      KeyA: 'left', KeyD: 'right', KeyW: 'up', KeyS: 'down',
-      Space: 'space',
-    };
-    return map[e.code] || null;
-  }
+  const KEY_MAP = {
+    ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down',
+    KeyA:'left', KeyD:'right', KeyW:'up', KeyS:'down',
+  };
 
   document.addEventListener('keydown', e => {
-    const k = key(e);
+    const k = KEY_MAP[e.code];
     if (k) { keys[k] = true; e.preventDefault(); }
   });
   document.addEventListener('keyup', e => {
-    const k = key(e);
+    const k = KEY_MAP[e.code];
     if (k) keys[k] = false;
   });
 
-  // Mouse
+  // ── Mouse ─────────────────────────────────────────────────────────────────
   const canvas = document.getElementById('game-canvas');
-  let mouseMoved = false;
+
+  canvas.addEventListener('mouseenter', () => { mouseOnCanvas = true; Audio.unlock(); });
+  canvas.addEventListener('mouseleave', () => { mouseOnCanvas = false; });
   canvas.addEventListener('mousemove', e => {
     const r = canvas.getBoundingClientRect();
     mouseX = e.clientX - r.left;
     mouseY = e.clientY - r.top;
-    mouseMoved = true;
-    // Aim = shoot: moving the mouse on the canvas fires automatically
-    shooting = true;
   });
-  // Stop shooting when mouse leaves canvas
-  canvas.addEventListener('mouseleave', () => {
-    shooting = false;
-    mouseDown = false;
-  });
-  canvas.addEventListener('mousedown', e => {
-    if (e.button === 0 || e.button === 2) { mouseDown = true; shooting = true; Audio.unlock(); }
-  });
-  canvas.addEventListener('mouseup', e => {
-    mouseDown = false;
-    // Keep shooting if mouse still on canvas and moving
-  });
-  document.addEventListener('mouseleave', () => { mouseDown = false; shooting = false; });
+  // Click also triggers unlock (for iOS audio)
+  canvas.addEventListener('click', () => Audio.unlock());
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-  // Touch — joystick zone (left half), shoot zone (right half)
+  // ── Mobile touch — left half = joystick, right half = aim/shoot ──────────
   const joyZone   = document.getElementById('joystick-zone');
   const shootZone = document.getElementById('shoot-zone');
   const joyBase   = document.getElementById('joystick-base');
   const joyKnob   = document.getElementById('joystick-knob');
+  const MAX_JOY   = 38;
 
-  const MAX_JOY = 36;
-
-  function onJoyStart(e) {
+  function joyStart(e) {
     Audio.unlock();
     const t = e.changedTouches[0];
-    joystick.active = true;
-    joystick.baseX  = t.clientX;
-    joystick.baseY  = t.clientY;
-    joystick.dx = joystick.dy = 0;
-    joyBase.style.display = 'block';
-    joyKnob.style.display = 'block';
-    joyBase.style.left = (t.clientX - 45) + 'px';
-    joyBase.style.top  = (t.clientY - 45) + 'px';
-    joyKnob.style.left = (t.clientX - 20) + 'px';
-    joyKnob.style.top  = (t.clientY - 20) + 'px';
+    joy.active = true; joy.baseX = t.clientX; joy.baseY = t.clientY;
+    joy.dx = joy.dy = 0;
+    joyBase.style.cssText = `display:block;left:${t.clientX-45}px;top:${t.clientY-45}px`;
+    joyKnob.style.cssText = `display:block;left:${t.clientX-20}px;top:${t.clientY-20}px`;
     e.preventDefault();
   }
-  function onJoyMove(e) {
-    if (!joystick.active) return;
+  function joyMove(e) {
+    if (!joy.active) return;
     const t = e.changedTouches[0];
-    const dx = t.clientX - joystick.baseX;
-    const dy = t.clientY - joystick.baseY;
+    const dx = t.clientX - joy.baseX, dy = t.clientY - joy.baseY;
     const d  = Math.hypot(dx, dy);
-    const cx = d > MAX_JOY ? (dx / d) * MAX_JOY : dx;
-    const cy = d > MAX_JOY ? (dy / d) * MAX_JOY : dy;
-    joystick.dx = cx / MAX_JOY;
-    joystick.dy = cy / MAX_JOY;
-    joyKnob.style.left = (joystick.baseX + cx - 20) + 'px';
-    joyKnob.style.top  = (joystick.baseY + cy - 20) + 'px';
+    const cx = d > MAX_JOY ? dx/d*MAX_JOY : dx;
+    const cy = d > MAX_JOY ? dy/d*MAX_JOY : dy;
+    joy.dx = cx / MAX_JOY; joy.dy = cy / MAX_JOY;
+    joyKnob.style.left = (joy.baseX + cx - 20) + 'px';
+    joyKnob.style.top  = (joy.baseY + cy - 20) + 'px';
     e.preventDefault();
   }
-  function onJoyEnd(e) {
-    joystick.active = false;
-    joystick.dx = joystick.dy = 0;
-    joyBase.style.display = 'none';
-    joyKnob.style.display = 'none';
+  function joyEnd(e) {
+    joy.active = false; joy.dx = joy.dy = 0;
+    joyBase.style.display = 'none'; joyKnob.style.display = 'none';
     e.preventDefault();
   }
 
-  function onShootStart(e) {
+  function aimStart(e) {
     Audio.unlock();
     const t = e.changedTouches[0];
     const r = canvas.getBoundingClientRect();
-    shootTouch.active = true;
-    shootTouch.aimX   = t.clientX - r.left;
-    shootTouch.aimY   = t.clientY - r.top;
-    shooting = true;
+    aim.active = true;
+    aim.x = t.clientX - r.left;
+    aim.y = t.clientY - r.top;
     e.preventDefault();
   }
-  function onShootMove(e) {
-    if (!shootTouch.active) return;
+  function aimMove(e) {
+    if (!aim.active) return;
     const t = e.changedTouches[0];
     const r = canvas.getBoundingClientRect();
-    shootTouch.aimX = t.clientX - r.left;
-    shootTouch.aimY = t.clientY - r.top;
+    aim.x = t.clientX - r.left;
+    aim.y = t.clientY - r.top;
     e.preventDefault();
   }
-  function onShootEnd(e) {
-    shootTouch.active = false;
-    shooting = false;
-    e.preventDefault();
-  }
+  function aimEnd(e) { aim.active = false; e.preventDefault(); }
 
-  joyZone.addEventListener('touchstart',  onJoyStart,   { passive: false });
-  joyZone.addEventListener('touchmove',   onJoyMove,    { passive: false });
-  joyZone.addEventListener('touchend',    onJoyEnd,     { passive: false });
-  joyZone.addEventListener('touchcancel', onJoyEnd,     { passive: false });
-  shootZone.addEventListener('touchstart',  onShootStart, { passive: false });
-  shootZone.addEventListener('touchmove',   onShootMove,  { passive: false });
-  shootZone.addEventListener('touchend',    onShootEnd,   { passive: false });
-  shootZone.addEventListener('touchcancel', onShootEnd,   { passive: false });
+  joyZone.addEventListener('touchstart',  joyStart, { passive:false });
+  joyZone.addEventListener('touchmove',   joyMove,  { passive:false });
+  joyZone.addEventListener('touchend',    joyEnd,   { passive:false });
+  joyZone.addEventListener('touchcancel', joyEnd,   { passive:false });
+  shootZone.addEventListener('touchstart',  aimStart, { passive:false });
+  shootZone.addEventListener('touchmove',   aimMove,  { passive:false });
+  shootZone.addEventListener('touchend',    aimEnd,   { passive:false });
+  shootZone.addEventListener('touchcancel', aimEnd,   { passive:false });
 
+  // ── Public API ────────────────────────────────────────────────────────────
   return {
-    // Returns current input state for server transmission
-    getState(playerX, playerY, scale, offX, offY) {
-      // Convert mouse canvas coords to world coords
-      const mx = (mouseX - offX) / scale;
-      const my = (mouseY - offY) / scale;
+    getState(scale, offX, offY) {
+      // Convert canvas mouse coords → world coords
+      const aimWorldX = (mouseX - offX) / scale;
+      const aimWorldY = (mouseY - offY) / scale;
 
-      let aimWorldX = mx, aimWorldY = my;
-      // Mobile: use shoot-touch canvas coord
-      if (shootTouch.active) {
-        aimWorldX = (shootTouch.aimX - offX) / scale;
-        aimWorldY = (shootTouch.aimY - offY) / scale;
-      }
-
-      // Joystick or keyboard
-      const jLeft  = joystick.dx < -0.15;
-      const jRight = joystick.dx >  0.15;
-      const jUp    = joystick.dy < -0.15;
-      const jDown  = joystick.dy >  0.15;
+      // Mobile aim world coords
+      const mAimX = (aim.x - offX) / scale;
+      const mAimY = (aim.y - offY) / scale;
 
       return {
-        left:  !!(keys.left  || jLeft),
-        right: !!(keys.right || jRight),
-        up:    !!(keys.up    || jUp),
-        down:  !!(keys.down  || jDown),
-        aimX:  aimWorldX,
-        aimY:  aimWorldY,
-        // Aim = shoot on desktop (mouse on canvas); touch: tap right side
-      shooting: !!(shooting || shootTouch.active),
+        left:    !!(keys.left  || joy.dx < -0.15),
+        right:   !!(keys.right || joy.dx >  0.15),
+        up:      !!(keys.up    || joy.dy < -0.15),
+        down:    !!(keys.down  || joy.dy >  0.15),
+        // World coords of aim point
+        aimX:    aim.active ? mAimX : aimWorldX,
+        aimY:    aim.active ? mAimY : aimWorldY,
+        // Shoot = pointer on canvas (desktop) OR finger on right side (mobile)
+        shooting: !!(mouseOnCanvas || aim.active),
       };
     },
-
-    getMouseCanvas() { return { x: mouseX, y: mouseY }; },
-    setWorldMouse(x, y) { worldX = x; worldY = y; },
   };
 })();

@@ -117,11 +117,7 @@ const Game = (() => {
       if (!running) return;
       rafId = requestAnimationFrame(loop);
 
-      const input = Input.getState(
-        gameState && gameState.players && gameState.players.find(p => p.id === selfId)?.x || 0,
-        gameState && gameState.players && gameState.players.find(p => p.id === selfId)?.y || 0,
-        Renderer.getScale(), Renderer.getOffX(), Renderer.getOffY()
-      );
+      const input = Input.getState(Renderer.getScale(), Renderer.getOffX(), Renderer.getOffY());
 
       // Send input to server
       if (socket && socket.connected && ts - lastSend > SEND_INTERVAL) {
