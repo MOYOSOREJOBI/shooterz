@@ -35,13 +35,21 @@ const Input = (() => {
     const r = canvas.getBoundingClientRect();
     mouseX = e.clientX - r.left;
     mouseY = e.clientY - r.top;
-    mouseDown && (shooting = true);
+    // Auto-shoot whenever mouse moves on canvas (aim = shoot on desktop)
+    if (mouseDown) shooting = true;
   });
   canvas.addEventListener('mousedown', e => {
     if (e.button === 0) { mouseDown = true; shooting = true; Audio.unlock(); }
   });
   canvas.addEventListener('mouseup', e => {
     if (e.button === 0) { mouseDown = false; shooting = false; }
+  });
+  // Also shoot on right click (aim right-click)
+  canvas.addEventListener('mousedown', e => {
+    if (e.button === 2) { shooting = true; }
+  });
+  canvas.addEventListener('mouseup', e => {
+    if (e.button === 2) { shooting = false; }
   });
   document.addEventListener('mouseleave', () => { mouseDown = false; shooting = false; });
 

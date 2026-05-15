@@ -88,9 +88,13 @@ const UI = (() => {
       document.getElementById('overlay-title').textContent = 'Waiting for players...';
       document.getElementById('overlay-title').className   = 'overlay-title info';
       document.getElementById('overlay-body').innerHTML    = `
-        <p style="color:#8899bb;margin:.5rem 0">Room ID: <b style="color:#00d4ff;letter-spacing:.15em">${data.roomId}</b></p>
-        <p style="color:#556;font-size:.85rem">Share this code with friends to join the same room</p>
-        <p style="color:#8899bb;margin-top:.5rem">${data.players.length} / ${maxPlayersForMode(data.mode)} players</p>`;
+        <p style="color:#8899bb;margin:.5rem 0">Room Code:</p>
+        <div style="display:flex;align-items:center;justify-content:center;gap:.6rem;margin:.4rem 0">
+          <span id="room-code-display" style="font-size:1.8rem;font-weight:900;color:#00d4ff;letter-spacing:.2em;background:#0d1a2a;padding:.3rem .9rem;border-radius:8px;border:1px solid #00d4ff44">${data.roomId}</span>
+          <button class="btn btn-secondary" style="padding:.4rem .8rem;font-size:.8rem" onclick="navigator.clipboard&&navigator.clipboard.writeText('${data.roomId}').then(()=>this.textContent='Copied!').catch(()=>{})">Copy</button>
+        </div>
+        <p style="color:#556;font-size:.82rem;margin-bottom:.5rem">Share this code — friends enter it in the Room ID field on the menu</p>
+        <p style="color:#8899bb">${data.players.length} / ${maxPlayersForMode(data.mode)} players joined</p>`;
       document.getElementById('overlay-btns').innerHTML = `<button class="btn btn-danger" onclick="UI.leaveGame()">Leave</button>`;
     }
   }
